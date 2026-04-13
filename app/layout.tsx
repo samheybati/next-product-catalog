@@ -15,10 +15,14 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" suppressHydrationWarning>
-        <body className="bg-[var(--bg)] text-[var(--text)] antialiased overflow-hidden">
+        <body className="bg-[var(--bg)] text-[var(--text)] antialiased">
         <ThemeProvider>
-            <Header/>
-            {children}
+            <div className="flex h-screen flex-col">
+                <Header/>
+                <div className="flex-1 overflow-y-auto">
+                    {children}
+                </div>
+            </div>
         </ThemeProvider>
         </body>
         </html>

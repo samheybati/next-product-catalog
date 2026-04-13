@@ -1,0 +1,83 @@
+"use client";
+
+import {useEffect, useState} from "react";
+import {useRouter} from "next/navigation";
+import {handleGoogleRedirectResult, loginWithGooglePopup, loginWithGoogleRedirect,} from "@/lib/auth";
+import {saveUserToFirestore} from "@/lib/users";
+
+export default function LoginPage() {
+    const router = useRouter();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        async function checkRedirectResult() {
+            try {
+                const result = await handleGoogleRedirectResult();
+                if (result?.user) {
+                    await saveUserToFirestore(result.user);
+                    router.push("/");
+                }
+            } catch (err: any) {
+                console.error(err);
+                setError(err?.message || "Login failed");
+            }
+        }
+
+        checkRedirectResult();
+    }, [router]);
+
+    const handleGoogleLogin = async () => {
+        try {
+            setLoading(true);
+            setError("");
+
+            const result = await loginWithGooglePopup();
+            await saveUserToFirestore(result.user);
+
+            router.push("/");
+        } catch (err: any) {
+            console.error(err);
+
+            if (err?.code === "auth/popup-blocked") {
+                await loginWithGoogleRedirect();
+                return;
+            }
+
+            setError(err?.message || "Login failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[var(--bg)] px-6 py-10">
+            <div className="w-full max-w-md rounded-3xl border border-[var(--border)] bg-[var(--card)] p-8 shadow-xl">
+                <div className="mb-6 text-center">
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[var(--primary)]">
+                        HabitForge
+                    </p>
+                    <h1 className="mt-3 text-3xl font-bold text-[var(--text)]">
+                        Sign in
+                    </h1>
+                    <p className="mt-2 text-sm text-[var(--text-muted)]">
+                        Continue with your Google account
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    disabled={loading}
+                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[var(--primary)] px-4 py-3 font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    {loading ? "Signing in..." : "Sign in with Google"}
+                </button>
+
+                {error ? (
+                    <p className="mt-4 text-center text-sm text-red-500">{error}</p>
+                ) : null}
+            </div>
+        </main>
+    );
+}
