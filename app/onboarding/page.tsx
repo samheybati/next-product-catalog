@@ -1,44 +1,46 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {useRouter} from "next/navigation";
-import {generateTenDayPlan} from "@/lib/ai";
+import {Sparkles} from "lucide-react";
+
 import {savePlanForUser} from "@/lib/plans";
 import {useAuthUser} from "@/hooks/useAuthUser";
+import {generateLevelPlan} from "@/lib/ai";
+
+type PlanLevel = "beginner" | "intermediate" | "advanced";
 
 export default function OnboardingPage() {
     const router = useRouter();
     const user = useAuthUser();
 
-    const [title, setTitle] = useState(""); // 👈 اسم پلن
-    const [description, setDescription] = useState(""); // 👈 توضیح هدف
+    const [title, setTitle] = useState("");
+    const [description, setDescription] = useState("");
     const [timePerDay, setTimePerDay] = useState("20");
-    const [level, setLevel] = useState("beginner");
+    const [level, setLevel] = useState<PlanLevel>("beginner");
     const [loading, setLoading] = useState(false);
 
+    const isFormValid = useMemo(() => {
+        return title.trim().length >= 3 && description.trim().length >= 10;
+    }, [title, description]);
+
     useEffect(() => {
-        if (user === null) return;
-        if (!user) {
+        if (user === undefined) return;
+
+        if (user === null) {
             router.replace("/login");
         }
     }, [user, router]);
 
-    if (!user) return null;
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!title.trim() || !description.trim()) return;
-
-        if (!user) {
-            router.push("/login");
-            return;
-        }
+        if (!isFormValid || !user) return;
 
         try {
             setLoading(true);
 
-            const plan = await generateTenDayPlan({
+            const plan = await generateLevelPlan({
                 title,
                 description,
                 timePerDay,
@@ -71,89 +73,142 @@ export default function OnboardingPage() {
         }
     };
 
+    if (user === undefined) {
+        return (
+            <main className="flex min-h-full items-center justify-center px-6 py-10">
+                <div
+                    className="w-full max-w-xl rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
+                    Checking your session...
+                </div>
+            </main>
+        );
+    }
+
+    if (user === null) {
+        return (
+            <main className="flex min-h-full items-center justify-center px-6 py-10">
+                <div
+                    className="w-full max-w-xl rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-8 text-center shadow-xl">
+                    Redirecting to login...
+                </div>
+            </main>
+        );
+    }
+
     return (
-        <main className="flex min-h-full items-center justify-center px-6 py-10">
+        <main className="relative flex min-h-full items-center justify-center bg-[var(--bg)] px-6 py-10">
             <div
-                className="w-full max-w-2xl rounded-[28px] border border-[var(--border)] bg-[var(--card)] p-8 shadow-xl">
+                className="absolute inset-0 -z-20 bg-gradient-to-b from-orange-50/80 via-[var(--bg)] to-[var(--bg)] dark:from-[#1a120c] dark:via-[var(--bg)] dark:to-[var(--bg)]"/>
+            <div
+                className="absolute left-1/2 top-1/2 -z-10 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-400/10 blur-3xl dark:bg-orange-500/10"/>
+
+            <div
+                className="w-full max-w-3xl rounded-[32px] border border-[var(--border)] bg-[var(--card)] p-8 shadow-[0_20px_80px_rgba(0,0,0,0.08)] sm:p-10">
                 <div className="mb-8">
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--primary)]">
-                        HabitForge
-                    </p>
-                    <h1 className="mt-3 text-3xl font-bold">Create your plan</h1>
-                    <p className="mt-2 text-[var(--text-muted)]">
-                        Give your goal a name and tell us what you really want to achieve.
+                    <div
+                        className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg)] px-4 py-2 text-sm text-[var(--primary)]">
+                        <Sparkles size={14}/>
+                        AI habit planning
+                    </div>
+
+                    <h1 className="mt-5 text-3xl font-bold sm:text-4xl">
+                        Create your next habit plan
+                    </h1>
+
+                    <p className="mt-3 max-w-2xl leading-8 text-[var(--text-muted)]">
+                        Give your plan a clear title, explain what you want to achieve, and
+                        HabitForge will turn it into structured daily steps you can actually follow.
                     </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Title */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            Plan title
-                        </label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="e.g. Learn English, Lose weight, Morning routine"
-                            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none placeholder:text-gray-400 focus:border-[var(--primary)]"
-                        />
-                    </div>
+                    <div className="grid gap-6">
+                        <div>
+                            <label htmlFor="plan-title" className="mb-2 block text-sm font-medium">
+                                Plan title
+                            </label>
+                            <input
+                                id="plan-title"
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="e.g. Learn English, Lose weight, Morning routine"
+                                className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none placeholder:text-gray-400 focus:border-[var(--primary)]"
+                            />
+                        </div>
 
-                    {/* Description */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            What exactly do you want to achieve?
-                        </label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Describe your goal in a bit more detail. For example: I want to improve my speaking skills and feel confident in daily conversations."
-                            rows={4}
-                            className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none placeholder:text-gray-400 focus:border-[var(--primary)]"
-                        />
-                    </div>
+                        <div>
+                            <label htmlFor="plan-description" className="mb-2 block text-sm font-medium">
+                                What exactly do you want to achieve?
+                            </label>
+                            <textarea
+                                id="plan-description"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Describe your goal clearly. For example: I want to improve my speaking skills and feel more confident in daily English conversations."
+                                rows={5}
+                                className="w-full resize-none rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none placeholder:text-gray-400 focus:border-[var(--primary)]"
+                            />
+                        </div>
 
-                    {/* Time */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            How much time can you spend per day?
-                        </label>
-                        <select
-                            value={timePerDay}
-                            onChange={(e) => setTimePerDay(e.target.value)}
-                            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none focus:border-[var(--primary)]"
-                        >
-                            <option value="10">10 minutes</option>
-                            <option value="20">20 minutes</option>
-                            <option value="30">30 minutes</option>
-                            <option value="45">45 minutes</option>
-                            <option value="60">60 minutes</option>
-                        </select>
-                    </div>
+                        <div className="grid gap-6 sm:grid-cols-2">
+                            <div>
+                                <label htmlFor="time-per-day" className="mb-2 block text-sm font-medium">
+                                    Time per day
+                                </label>
+                                <select
+                                    id="time-per-day"
+                                    value={timePerDay}
+                                    onChange={(e) => setTimePerDay(e.target.value)}
+                                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none focus:border-[var(--primary)]"
+                                >
+                                    <option value="10">10 minutes</option>
+                                    <option value="20">20 minutes</option>
+                                    <option value="30">30 minutes</option>
+                                    <option value="45">45 minutes</option>
+                                    <option value="60">60 minutes</option>
+                                </select>
+                            </div>
 
-                    {/* Level */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium">
-                            What is your current level?
-                        </label>
-                        <select
-                            value={level}
-                            onChange={(e) => setLevel(e.target.value)}
-                            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none focus:border-[var(--primary)]"
-                        >
-                            <option value="beginner">Beginner</option>
-                            <option value="intermediate">Intermediate</option>
-                            <option value="advanced">Advanced</option>
-                        </select>
+                            <div>
+                                <label htmlFor="level" className="mb-2 block text-sm font-medium">
+                                    Current level
+                                </label>
+                                <select
+                                    id="level"
+                                    value={level}
+                                    onChange={(e) => setLevel(e.target.value as PlanLevel)}
+                                    className="w-full rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 outline-none focus:border-[var(--primary)]"
+                                >
+                                    <option value="beginner">Beginner</option>
+                                    <option value="intermediate">Intermediate</option>
+                                    <option value="advanced">Advanced</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     <button
                         type="submit"
-                        disabled={loading}
-                        className="w-full rounded-2xl bg-[var(--primary)] px-6 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                        disabled={!isFormValid || loading}
+                        className="w-full rounded-2xl bg-[var(--primary)] px-6 py-3.5 text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {loading ? "Generating your plan..." : "Create plan"}
+                        {loading ? (
+                            <div className="flex items-center justify-center gap-3">
+                                <span
+                                    className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"/>
+                                <div className="flex flex-col items-start">
+        <span className="text-sm font-semibold leading-none">
+          Generating your plan...
+        </span>
+                                    <span className="mt-1 text-[11px] leading-none text-white/80">
+          Based on your goal, time, and level
+        </span>
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="text-sm font-semibold">Create plan</span>
+                        )}
                     </button>
                 </form>
             </div>

@@ -18,7 +18,7 @@ export default function LoginPage() {
                     await saveUserToFirestore(result.user);
                     router.push("/");
                 }
-            } catch (err: any) {
+            } catch (err : any ) {
                 console.error(err);
                 setError(err?.message || "Login failed");
             }
@@ -51,7 +51,7 @@ export default function LoginPage() {
     };
 
     return (
-        <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[var(--bg)] px-6 py-10">
+        <main className="flex min-h-[calc(90vh)] items-center justify-center bg-[var(--bg)] px-6 py-10">
             <div className="w-full max-w-md rounded-3xl border border-[var(--border)] bg-[var(--card)] p-8 shadow-xl">
                 <div className="mb-6 text-center">
                     <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[var(--primary)]">

@@ -1,17 +1,30 @@
 "use client";
 
-import {useEffect, useMemo, useState} from "react";
-import {useRouter} from "next/navigation";
-import {Trash2} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 
-import {deletePlanForUser, getPlansForUser, updateTaskCompletion,} from "@/lib/plans";
-import {useAuthUser} from "@/hooks/useAuthUser";
+import {
+    deletePlanForUser,
+    getPlansForUser,
+    updateTaskCompletion,
+} from "@/lib/plans";
+import { useAuthUser } from "@/hooks/useAuthUser";
 
 import OverallConsistencyCard from "@/components/dashboard/OverallConsistencyCard";
 import SelectedPlanDetailsCard from "@/components/dashboard/SelectedPlanDetailsCard";
 
-import type {LoadedPlan} from "@/types/plan";
-import {getPlanStats, XP_PER_TASK} from "@/utils/plan";
+import type { LoadedPlan } from "@/types/plan";
+import { getPlanStats, XP_PER_TASK } from "@/utils/plan";
+
+const STEP_CHUNK_SIZE = 5;
+const MAX_VISIBLE_STEPS = 20;
+
+function getNextLevel(level: string) {
+    if (level === "beginner") return "intermediate";
+    if (level === "intermediate") return "advanced";
+    return null;
+}
 
 export default function DashboardPage() {
     const router = useRouter();
@@ -21,27 +34,30 @@ export default function DashboardPage() {
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [loadingPlans, setLoadingPlans] = useState(true);
     const [savingTaskIndex, setSavingTaskIndex] = useState<number | null>(null);
+    const [visibleStepsCount, setVisibleStepsCount] = useState(STEP_CHUNK_SIZE);
 
-    const authResolved = user !== null;
+    const isLoadingAuth = user === undefined;
     const isAuthenticated = !!user;
 
     useEffect(() => {
-        if (!authResolved) return;
+        if (isLoadingAuth) return;
 
         if (!isAuthenticated) {
             router.replace("/login");
         }
-    }, [authResolved, isAuthenticated, router]);
+    }, [isLoadingAuth, isAuthenticated, router]);
 
     useEffect(() => {
         async function loadPlans() {
-            if (!isAuthenticated || !user) {
+            if (!user) {
                 setLoadingPlans(false);
                 return;
             }
 
             try {
-                const allPlans = (await getPlansForUser(user.uid)) as LoadedPlan[];
+                setLoadingPlans(true);
+
+                const allPlans = await getPlansForUser(user.uid);
 
                 if (!allPlans.length) {
                     router.push("/onboarding");
@@ -57,10 +73,10 @@ export default function DashboardPage() {
             }
         }
 
-        if (authResolved) {
+        if (!isLoadingAuth && isAuthenticated) {
             loadPlans();
         }
-    }, [authResolved, isAuthenticated, user, router]);
+    }, [isLoadingAuth, isAuthenticated, user, router]);
 
     const selectedPlan = useMemo(() => {
         return plans.find((plan) => plan.id === selectedPlanId) ?? null;
@@ -70,14 +86,41 @@ export default function DashboardPage() {
         return selectedPlan ? getPlanStats(selectedPlan) : null;
     }, [selectedPlan]);
 
-    const handleToggleTask = async (index: number) => {
+    useEffect(() => {
+        if (!selectedPlan) return;
+
+        setVisibleStepsCount((prev) => {
+            const minimumVisible = Math.max(STEP_CHUNK_SIZE, prev);
+            return Math.min(
+                minimumVisible,
+                Math.min(selectedPlan.tasks.length, MAX_VISIBLE_STEPS)
+            );
+        });
+    }, [selectedPlanId, selectedPlan]);
+
+    const visibleTasks = useMemo(() => {
+        if (!selectedPlan) return [];
+        return selectedPlan.tasks.slice(0, visibleStepsCount);
+    }, [selectedPlan, visibleStepsCount]);
+
+    const allTwentyStepsVisible =
+        selectedPlan?.tasks.length
+            ? visibleStepsCount >= Math.min(selectedPlan.tasks.length, MAX_VISIBLE_STEPS)
+            : false;
+
+    const nextLevel = selectedPlan ? getNextLevel(selectedPlan.level) : null;
+
+    const handleToggleTask = async (taskDay: number) => {
         if (!user || !selectedPlan) return;
 
+        const taskIndex = selectedPlan.tasks.findIndex((task) => task.day === taskDay);
+        if (taskIndex === -1) return;
+
         const updatedTasks = [...selectedPlan.tasks];
-        const currentTask = updatedTasks[index];
+        const currentTask = updatedTasks[taskIndex];
         const nextCompleted = !currentTask.completed;
 
-        updatedTasks[index] = {
+        updatedTasks[taskIndex] = {
             ...currentTask,
             completed: nextCompleted,
             completedAt: nextCompleted ? new Date().toISOString() : null,
@@ -85,12 +128,12 @@ export default function DashboardPage() {
 
         setPlans((prev) =>
             prev.map((plan) =>
-                plan.id === selectedPlan.id ? {...plan, tasks: updatedTasks} : plan
+                plan.id === selectedPlan.id ? { ...plan, tasks: updatedTasks } : plan
             )
         );
 
         try {
-            setSavingTaskIndex(index);
+            setSavingTaskIndex(taskIndex);
             await updateTaskCompletion(user.uid, selectedPlan.id, updatedTasks);
         } catch (error) {
             console.error("Failed to update task:", error);
@@ -122,12 +165,15 @@ export default function DashboardPage() {
         }
     };
 
-    const handleLoadNextPlan = async () => {
-        if (!selectedPlanStats?.allDone) return;
-        console.log("Load next steps...");
+    const handleLoadNextPlan = () => {
+        if (!selectedPlan) return;
+
+        setVisibleStepsCount((prev) =>
+            Math.min(prev + STEP_CHUNK_SIZE, Math.min(selectedPlan.tasks.length, MAX_VISIBLE_STEPS))
+        );
     };
 
-    if (!authResolved) {
+    if (isLoadingAuth) {
         return (
             <main className="px-6 py-10">
                 <div className="mx-auto max-w-7xl">Checking session...</div>
@@ -187,7 +233,10 @@ export default function DashboardPage() {
                                         >
                                             <button
                                                 type="button"
-                                                onClick={() => setSelectedPlanId(plan.id)}
+                                                onClick={() => {
+                                                    setSelectedPlanId(plan.id);
+                                                    setVisibleStepsCount(STEP_CHUNK_SIZE);
+                                                }}
                                                 className="text-left"
                                             >
                                                 <p className="text-sm font-semibold capitalize">
@@ -204,7 +253,7 @@ export default function DashboardPage() {
                                                 className="rounded-lg p-1 text-[var(--text-muted)] transition hover:bg-[var(--card)] hover:text-red-500"
                                                 aria-label={`Delete ${plan.goal}`}
                                             >
-                                                <Trash2 size={16}/>
+                                                <Trash2 size={16} />
                                             </button>
                                         </div>
                                     );
@@ -230,74 +279,93 @@ export default function DashboardPage() {
                             </div>
 
                             <div className="mt-6 space-y-4">
-                                {selectedPlan.tasks.map((task, index) => (
-                                    <label
-                                        key={`${selectedPlan.id}-${task.day}`}
-                                        className="flex items-start gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={task.completed}
-                                            onChange={() => handleToggleTask(index)}
-                                            className="mt-1 h-5 w-5 accent-[var(--primary)]"
-                                        />
+                                {visibleTasks.map((task) => {
+                                    const actualIndex = selectedPlan.tasks.findIndex(
+                                        (item) => item.day === task.day
+                                    );
 
-                                        <div className="flex-1">
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div>
-                                                    <p className="font-semibold">
-                                                        {task.shortTitle || `Day ${task.day}`}
-                                                    </p>
+                                    return (
+                                        <label
+                                            key={`${selectedPlan.id}-${task.day}`}
+                                            className="flex items-start gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={task.completed}
+                                                onChange={() => handleToggleTask(task.day)}
+                                                className="mt-1 h-5 w-5 accent-[var(--primary)]"
+                                            />
 
-                                                    <p
-                                                        className={`mt-2 ${
-                                                            task.completed ? "line-through opacity-60" : ""
-                                                        }`}
-                                                    >
-                                                        {task.title}
-                                                    </p>
-
-                                                    {task.description ? (
-                                                        <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
-                                                            {task.description}
+                                            <div className="flex-1">
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div>
+                                                        <p className="font-semibold">
+                                                            {task.shortTitle || `Day ${task.day}`}
                                                         </p>
-                                                    ) : null}
-                                                </div>
 
-                                                <div className="text-right">
-                                                    <p className="text-sm font-semibold text-[var(--primary)]">
-                                                        +{XP_PER_TASK} XP
-                                                    </p>
-
-                                                    {savingTaskIndex === index ? (
-                                                        <p className="mt-1 text-xs text-[var(--text-muted)]">
-                                                            Saving...
+                                                        <p
+                                                            className={`mt-2 ${
+                                                                task.completed ? "line-through opacity-60" : ""
+                                                            }`}
+                                                        >
+                                                            {task.title}
                                                         </p>
-                                                    ) : null}
+
+                                                        {task.description ? (
+                                                            <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">
+                                                                {task.description}
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
+
+                                                    <div className="text-right">
+                                                        <p className="text-sm font-semibold text-[var(--primary)]">
+                                                            +{XP_PER_TASK} XP
+                                                        </p>
+
+                                                        {savingTaskIndex === actualIndex ? (
+                                                            <p className="mt-1 text-xs text-[var(--text-muted)]">
+                                                                Saving...
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </label>
-                                ))}
+                                        </label>
+                                    );
+                                })}
                             </div>
 
+                            {visibleStepsCount > STEP_CHUNK_SIZE && !allTwentyStepsVisible ? (
+                                <div className="mt-4 rounded-2xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+                                    Great job. More steps have been unlocked for you.
+                                </div>
+                            ) : null}
+
                             <div className="mt-6 flex justify-end">
-                                <button
-                                    type="button"
-                                    disabled={!selectedPlanStats.allDone}
-                                    onClick={handleLoadNextPlan}
-                                    className="rounded-2xl bg-[var(--primary)] px-5 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                    Load next steps
-                                </button>
+                                {!allTwentyStepsVisible ? (
+                                    <button
+                                        type="button"
+                                        onClick={handleLoadNextPlan}
+                                        className="rounded-2xl bg-[var(--primary)] px-5 py-3 text-sm font-semibold text-white transition"
+                                    >
+                                        Load next steps
+                                    </button>
+                                ) : (
+                                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--text-muted)]">
+                                        {nextLevel
+                                            ? `You finished this level. Start your next ${nextLevel} plan.`
+                                            : "You finished this plan. You're ready for your next challenge."}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
                 </section>
 
                 <aside className="space-y-6">
-                    <OverallConsistencyCard plans={plans}/>
-                    <SelectedPlanDetailsCard planId={selectedPlanId} plans={plans}/>
+                    <OverallConsistencyCard plans={plans} />
+                    <SelectedPlanDetailsCard planId={selectedPlanId} plans={plans} />
                 </aside>
             </div>
         </main>

@@ -41,7 +41,7 @@ function extractJson(text: string) {
     }
 }
 
-export async function generateTenDayPlan({
+export async function generateLevelPlan({
                                              title,
                                              description,
                                              timePerDay,
