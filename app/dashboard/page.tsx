@@ -1,21 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import {useEffect, useMemo, useState} from "react";
+import {useRouter} from "next/navigation";
+import {Trash2} from "lucide-react";
 
-import {
-    deletePlanForUser,
-    getPlansForUser,
-    updateTaskCompletion,
-} from "@/lib/plans";
-import { useAuthUser } from "@/hooks/useAuthUser";
+import {deletePlanForUser, getPlansForUser, updateTaskCompletion,} from "@/lib/plans";
+import {useAuthUser} from "@/hooks/useAuthUser";
 
 import OverallConsistencyCard from "@/components/dashboard/OverallConsistencyCard";
 import SelectedPlanDetailsCard from "@/components/dashboard/SelectedPlanDetailsCard";
 
-import type { LoadedPlan } from "@/types/plan";
-import { getPlanStats, XP_PER_TASK } from "@/utils/plan";
+import type {LoadedPlan} from "@/types/plan";
+import {getPlanStats, XP_PER_TASK} from "@/utils/plan";
 
 const STEP_CHUNK_SIZE = 5;
 const MAX_VISIBLE_STEPS = 20;
@@ -102,6 +98,7 @@ export default function DashboardPage() {
         if (!selectedPlan) return [];
         return selectedPlan.tasks.slice(0, visibleStepsCount);
     }, [selectedPlan, visibleStepsCount]);
+
 
     const allTwentyStepsVisible =
         selectedPlan?.tasks.length
