@@ -4,11 +4,19 @@ import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import {handleGoogleRedirectResult, loginWithGooglePopup, loginWithGoogleRedirect,} from "@/lib/auth";
 import {saveUserToFirestore} from "@/lib/users";
+import {useAuthUser} from "@/hooks/useAuthUser";
 
 export default function LoginPage() {
     const router = useRouter();
+    const user = useAuthUser();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    useEffect(() => {
+        if (user) {
+            router.replace("/dashboard");
+        }
+    }, [user, router]);
 
     useEffect(() => {
         async function checkRedirectResult() {
@@ -16,7 +24,7 @@ export default function LoginPage() {
                 const result = await handleGoogleRedirectResult();
                 if (result?.user) {
                     await saveUserToFirestore(result.user);
-                    router.push("/");
+                    router.push("/dashboard");
                 }
             } catch (err : any ) {
                 console.error(err);
@@ -35,7 +43,7 @@ export default function LoginPage() {
             const result = await loginWithGooglePopup();
             await saveUserToFirestore(result.user);
 
-            router.push("/");
+            router.push("/dashboard");
         } catch (err: any) {
             console.error(err);
 
